@@ -1,0 +1,6 @@
+[submodule "thirdparty/basalt-headers"]
+	path = thirdparty/basalt-headers
+	url = https://github.com/powei-lin/basalt-headers-fork.git
+[submodule "thirdparty/ceres-solver"]
+	path = thirdparty/ceres-solver
+	url = https://github.com/ceres-solver/ceres-solver.git
