@@ -1,0 +1,9 @@
+{
+  "dataset_type": "euroc",
+  "setting":{
+    "cam_num": 2,
+    "start_frame_idx": 0,
+    "step": 1,
+    "max_frame_num": 2000
+  }
+}

@@ -10,6 +10,11 @@ find_package(OpenCV REQUIRED)
 add_subdirectory(${PROJECT_SOURCE_DIR}/thirdparty)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty)
+include_directories(${PROJECT_SOURCE_DIR}/thirdparty/basalt-optical-flow/include)
+
+file(GLOB TINY_VO_SRCS ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/src/**/*.cpp)
+add_library(tinyvo ${TINY_VO_SRCS})
+target_link_libraries(tinyvo basalt-headers Ceres::ceres ${OpenCV_LIBS})
 
 add_executable(main main.cpp)
-target_link_libraries(main basalt-headers Ceres::ceres)
+target_link_libraries(main tinyvo)
