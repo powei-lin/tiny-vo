@@ -17,4 +17,4 @@ add_library(tinyvo ${TINY_VO_SRCS})
 target_link_libraries(tinyvo basalt-headers Ceres::ceres ${OpenCV_LIBS})
 
 add_executable(main main.cpp)
-target_link_libraries(main tinyvo)
+target_link_libraries(main tinyvo pango_display)

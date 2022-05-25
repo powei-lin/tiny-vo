@@ -4,3 +4,6 @@
 [submodule "thirdparty/ceres-solver"]
 	path = thirdparty/ceres-solver
 	url = https://github.com/ceres-solver/ceres-solver.git
+[submodule "thirdparty/Pangolin"]
+	path = thirdparty/Pangolin
+	url = https://github.com/stevenlovegrove/Pangolin.git

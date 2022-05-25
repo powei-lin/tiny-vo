@@ -7,6 +7,11 @@
 #include <opencv2/viz.hpp>
 #include <basalt/frame_to_frame_optical_flow.h>
 
+#include <pangolin/display/display.h>
+#include <pangolin/display/view.h>
+#include <pangolin/handler/handler.h>
+#include <pangolin/gl/gldraw.h>
+
 #include <argus_utillity.h>
 #include <dataset_loader/dataset_loader.h>
 #include <camera_model/extended_unified_camera.hpp>
@@ -33,6 +38,32 @@ int main(int argc, char *argv[]) {
     filesystem::create_directories(log_path);
   }
 
+  pangolin::CreateWindowAndBind("Main", 640, 480);
+  glEnable(GL_DEPTH_TEST);
+
+  // Define Projection and initial ModelView matrix
+  pangolin::OpenGlRenderState s_cam(
+      pangolin::ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 100),
+      pangolin::ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin::AxisY));
+
+  // Create Interactive View in window
+  pangolin::Handler3D handler(s_cam);
+  pangolin::View &d_cam = pangolin::CreateDisplay()
+                              .SetBounds(0.0, 1.0, 0.0, 1.0, -640.0f / 480.0f)
+                              .SetHandler(&handler);
+
+  while (!pangolin::ShouldQuit()) {
+    // Clear screen and activate view to render into
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    d_cam.Activate(s_cam);
+
+    // Render OpenGL Cube
+    pangolin::glDrawColouredCube();
+
+    // Swap frames and Process Events
+    pangolin::FinishFrame();
+  }
+
   // load dataset
   const auto data_type_config = argus::load_json(data_config_file_path);
   const auto dataset_loader_ptr =
@@ -50,8 +81,8 @@ int main(int argc, char *argv[]) {
   // load basalt optical flow tracker
   Eigen::aligned_vector<basalt::GenericCamera<float>> gcs(models.size());
   for (int cam = 0; cam < models.size(); ++cam)
-    gcs[cam].variant =
-        basalt::ExtendedUnifiedCamera<float>(models[cam].get_param().cast<float>());
+    gcs[cam].variant = basalt::ExtendedUnifiedCamera<float>(
+        models[cam].get_param().cast<float>());
   basalt::FrameToFrameOpticalFlow<float, basalt::Pattern51>
       optical_flow_tracker(gcs, T_cami_cam0[1].inverse());
 
