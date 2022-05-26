@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <iostream>
+#include <queue>
 
 #include <CLI11.hpp>
 #include <opencv2/highgui.hpp>
@@ -81,31 +82,47 @@ int main(int argc, char *argv[]) {
 
   pangolin::GlTexture imageTexture(width, height, GL_RGB, false, 0, GL_RGB,
                                    GL_UNSIGNED_BYTE);
+  std::queue<std::shared_ptr<cv::Mat>> img_with_points;
 
-  // main loop
-  for (auto frame_ptr = dataset_loader_ptr->get_img_frame(); frame_ptr;
-       frame_ptr = dataset_loader_ptr->get_img_frame()) {
+  std::thread vio([&]() {
+    for (auto frame_ptr = dataset_loader_ptr->get_img_frame(); frame_ptr;
+         frame_ptr = dataset_loader_ptr->get_img_frame()) {
+
+      // add feature points and track
+      optical_flow_tracker.processFrame(*frame_ptr);
+      const auto current_obs = optical_flow_tracker.getObservations();
+
+      std::vector<cv::Mat> temp_img_for_drawing(cam_num);
+      for (int cam = 0; cam < cam_num; ++cam) {
+        temp_img_for_drawing[cam] =
+            argus::draw_observation((*frame_ptr)[cam], current_obs[cam]);
+      }
+      cv::Mat show;
+      cv::vconcat(temp_img_for_drawing, show);
+      cv::flip(show, show, 0);
+      img_with_points.push(make_shared<cv::Mat>(show));
+    }
+    img_with_points.push(nullptr);
+
+    std::cout << "Finished vio" << std::endl;
+  });
+
+  // drawing loop
+  while (!pangolin::ShouldQuit()) {
+    while(img_with_points.empty())
+      this_thread::sleep_for(chrono::milliseconds(5));
+    auto img_ptr = img_with_points.front();
+    if( img_ptr == nullptr ) {
+      break;
+    }
+    img_with_points.pop();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     d_cam.Activate(s_cam);
     glColor3f(1.0, 1.0, 1.0);
     pangolin::glDrawColouredCube();
 
-    // add feature points and track
-    optical_flow_tracker.processFrame(*frame_ptr);
-    const auto current_obs = optical_flow_tracker.getObservations();
-
-    std::vector<cv::Mat> img_with_points(cam_num);
-    for (int cam = 0; cam < cam_num; ++cam) {
-      img_with_points[cam] =
-          argus::draw_observation((*frame_ptr)[cam], current_obs[cam]);
-    }
-    // cout << current_obs[0].size() << endl;
-    cv::Mat show;
-    cv::vconcat(img_with_points, show);
-
-    cv::flip(show, show, 0);
-    imageTexture.Upload(show.ptr(), GL_BGR, GL_UNSIGNED_BYTE);
+    imageTexture.Upload(img_ptr->ptr(), GL_BGR, GL_UNSIGNED_BYTE);
     d_image.Activate();
     glColor3f(1.0, 1.0, 1.0);
     imageTexture.RenderToViewport();
@@ -114,6 +131,7 @@ int main(int argc, char *argv[]) {
     // cv::imshow("img", show);
     // cv::waitKey(1);
   }
+  vio.join();
 
   const std::string result_json_path = log_path + "/calib_result.json";
   const std::string result_poses_json_path = log_path + "/poses.json";
