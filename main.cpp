@@ -38,32 +38,6 @@ int main(int argc, char *argv[]) {
     filesystem::create_directories(log_path);
   }
 
-  pangolin::CreateWindowAndBind("Main", 640, 480);
-  glEnable(GL_DEPTH_TEST);
-
-  // Define Projection and initial ModelView matrix
-  pangolin::OpenGlRenderState s_cam(
-      pangolin::ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 100),
-      pangolin::ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin::AxisY));
-
-  // Create Interactive View in window
-  pangolin::Handler3D handler(s_cam);
-  pangolin::View &d_cam = pangolin::CreateDisplay()
-                              .SetBounds(0.0, 1.0, 0.0, 1.0, -640.0f / 480.0f)
-                              .SetHandler(&handler);
-
-  while (!pangolin::ShouldQuit()) {
-    // Clear screen and activate view to render into
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    d_cam.Activate(s_cam);
-
-    // Render OpenGL Cube
-    pangolin::glDrawColouredCube();
-
-    // Swap frames and Process Events
-    pangolin::FinishFrame();
-  }
-
   // load dataset
   const auto data_type_config = argus::load_json(data_config_file_path);
   const auto dataset_loader_ptr =
@@ -72,9 +46,9 @@ int main(int argc, char *argv[]) {
   const auto cam_num = dataset_loader_ptr->total_cam_num();
 
   // load cameras
-  std::vector<Eigen::Vector2i> camera_col_row;
   const auto models = argus::json2models<argus::ExtendedUnifiedCamera<double>>(
       camera_calib_file_path);
+  const auto img_col_row = models[0].get_img_col_row();
   const auto T_cami_cam0 =
       argus::json2extrinsics<double>(camera_calib_file_path);
 
@@ -86,16 +60,59 @@ int main(int argc, char *argv[]) {
   basalt::FrameToFrameOpticalFlow<float, basalt::Pattern51>
       optical_flow_tracker(gcs, T_cami_cam0[1].inverse());
 
+  // Create OpenGL window in single line
+  pangolin::CreateWindowAndBind("Main", 1280, 720);
+  glEnable(GL_DEPTH_TEST);
+
+  pangolin::OpenGlRenderState s_cam(
+      pangolin::ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.1, 1000),
+      pangolin::ModelViewLookAt(-1, 1, -1, 0, 0, 0, pangolin::AxisY));
+
+  pangolin::View &d_cam = pangolin::Display("cam")
+                              .SetBounds(0, 1.0f, 0, 1.0f, -640 / 480.0)
+                              .SetHandler(new pangolin::Handler3D(s_cam));
+
+  const int width = img_col_row.x();
+  const int height = img_col_row.y() * cam_num;
+  pangolin::View &d_image =
+      pangolin::Display("image")
+          .SetBounds(0, 1.0f, 0, 720.0 / 2 / 1280, (float)width / height)
+          .SetLock(pangolin::LockLeft, pangolin::LockTop);
+
+  pangolin::GlTexture imageTexture(width, height, GL_RGB, false, 0, GL_RGB,
+                                   GL_UNSIGNED_BYTE);
+
   // main loop
   for (auto frame_ptr = dataset_loader_ptr->get_img_frame(); frame_ptr;
        frame_ptr = dataset_loader_ptr->get_img_frame()) {
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    d_cam.Activate(s_cam);
+    glColor3f(1.0, 1.0, 1.0);
+    pangolin::glDrawColouredCube();
+
+    // add feature points and track
     optical_flow_tracker.processFrame(*frame_ptr);
     const auto current_obs = optical_flow_tracker.getObservations();
+
+    std::vector<cv::Mat> img_with_points(cam_num);
+    for (int cam = 0; cam < cam_num; ++cam) {
+      img_with_points[cam] =
+          argus::draw_observation((*frame_ptr)[cam], current_obs[cam]);
+    }
     // cout << current_obs[0].size() << endl;
     cv::Mat show;
-    cv::hconcat(*frame_ptr, show);
-    cv::imshow("img", show);
-    cv::waitKey(1);
+    cv::vconcat(img_with_points, show);
+
+    cv::flip(show, show, 0);
+    imageTexture.Upload(show.ptr(), GL_BGR, GL_UNSIGNED_BYTE);
+    d_image.Activate();
+    glColor3f(1.0, 1.0, 1.0);
+    imageTexture.RenderToViewport();
+
+    pangolin::FinishFrame();
+    // cv::imshow("img", show);
+    // cv::waitKey(1);
   }
 
   const std::string result_json_path = log_path + "/calib_result.json";

@@ -8,6 +8,7 @@
 #include <json.hpp>
 #include <opencv2/calib3d.hpp>
 #include <sophus/se3.hpp>
+#include <basalt/utils/eigen_utils.hpp>
 
 namespace argus {
 nlohmann::json load_json(const std::string &file_path);
@@ -21,6 +22,10 @@ Sophus::SE3<Scalar> rtvec2SE3(const cv::Vec<Scalar, 3> rvec,
   Eigen::Matrix<Scalar, 3, 1> t(tvec[0], tvec[1], tvec[2]);
   return Sophus::SE3<Scalar>(Sophus::SO3<Scalar>::exp(r), t);
 }
+
+cv::Mat draw_observation(
+    const cv::Mat &img,
+    const Eigen::aligned_map<size_t, Eigen::Vector2f> &observation);
 
 // template <typename ArgusCameraModel>
 // Sophus::SE3d solvePnP(const typename ArgusCameraModel::VecN &param,

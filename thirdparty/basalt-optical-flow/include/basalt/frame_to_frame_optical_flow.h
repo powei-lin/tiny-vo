@@ -94,34 +94,6 @@ public:
 
   ~FrameToFrameOpticalFlow() {}
 
-  void showDebug(
-      const std::vector<cv::Mat> &imgs,
-      const std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
-          &obs,
-      std::string window_name) {
-
-    cv::Mat allcamshow;
-    for (int cam = 0; cam < cam_num; cam++) {
-      cv::Mat img_show;
-      cv::cvtColor(imgs[cam], img_show, cv::COLOR_GRAY2BGR);
-      std::uniform_int_distribution<int> dis(1, 255);
-      for (const auto &ob : obs.at(cam)) {
-        std::mt19937 gen(ob.first);
-        cv::Scalar color(dis(gen), dis(gen), dis(gen));
-        cv::Point2f pt(ob.second.translation().x(),
-                       ob.second.translation().y());
-        cv::circle(img_show, pt, 3, color, -1);
-        cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
-      }
-      if (cam == 0) {
-        allcamshow = img_show;
-      } else {
-        cv::hconcat(allcamshow, img_show, allcamshow);
-      }
-    }
-    cv::imshow(window_name, allcamshow);
-  }
-
   std::vector<Eigen::aligned_map<KeypointId, Eigen::Vector2f>>
   getObservations() const {
     std::vector<Eigen::aligned_map<KeypointId, Eigen::Vector2f>> obs(cam_num);
@@ -215,8 +187,6 @@ public:
       observations = new_observations;
 
       addPoints();
-      showDebug(imgs, observations, "new");
-      // cv::waitKey(1);
       filterPoints();
     }
 
@@ -423,10 +393,16 @@ public:
     }
 
     for (int id : lm_to_remove) {
-      observations.at(0).erase(id);
-      observations.at(1).erase(id);
+      removeObservations(id);
     }
   }
+
+  void removeObservations(int id){
+    for(auto &ob:observations){
+      ob.erase(id);
+    }
+  }
+
   void detectKeypoints(
       const basalt::Image<const uint16_t> &img_raw, KeypointsData &kd,
       int PATCH_SIZE, int num_points_cell,
