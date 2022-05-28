@@ -6,4 +6,5 @@ set(PROVIDE_UNINSTALL_TARGET OFF CACHE BOOL "" FORCE)
 add_subdirectory(ceres-solver)
 
 set(BUILD_PANGOLIN_PYTHON OFF CACHE BOOL "" FORCE)
+set(BUILD_EXAMPLES ON CACHE BOOL "" FORCE)
 add_subdirectory(Pangolin)

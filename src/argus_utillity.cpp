@@ -47,4 +47,19 @@ cv::Mat draw_observation(
   return temp;
 }
 
+std::shared_ptr<cv::Mat> draw_obs_for_pango(
+    const std::vector<cv::Mat> &imgs,
+    const std::vector<Eigen::aligned_map<size_t, Eigen::Vector2f>>
+        &current_obs) {
+  std::vector<cv::Mat> temp_img_for_drawing(imgs.size());
+  for (int cam = 0; cam < imgs.size(); ++cam) {
+    temp_img_for_drawing[cam] =
+        argus::draw_observation(imgs.at(cam), current_obs.at(cam));
+  }
+  cv::Mat show;
+  cv::vconcat(temp_img_for_drawing, show);
+  cv::flip(show, show, 0);
+  return std::make_shared<cv::Mat>(show);
+}
+
 } // namespace argus

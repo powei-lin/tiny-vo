@@ -36,6 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <thread>
+#include <unordered_set>
 
 #include <sophus/se2.hpp>
 #include <sophus/se3.hpp>
@@ -103,6 +104,20 @@ public:
       }
     }
     return obs;
+  }
+
+  std::vector<Eigen::aligned_map<KeypointId, Eigen::Vector3f>>
+  getUndistortPoints() const {
+    std::vector<Eigen::aligned_map<KeypointId, Eigen::Vector3f>> un_pts(
+        cam_num);
+    for (int cam = 0; cam < cam_num; ++cam) {
+      for (const auto &kv : observations[cam]) {
+        Eigen::Vector4f p3d;
+        if (intrinsics[cam].unproject(kv.second.translation(), p3d))
+          un_pts[cam][kv.first] = p3d.head<3>();
+      }
+    }
+    return un_pts;
   }
 
   void processFrame(const std::vector<cv::Mat> &imgs) {
@@ -397,8 +412,13 @@ public:
     }
   }
 
-  void removeObservations(int id){
-    for(auto &ob:observations){
+  void removeObservations(const std::unordered_set<size_t> &bad_ids) {
+    for (auto id : bad_ids) {
+      removeObservations(id);
+    }
+  }
+  void removeObservations(size_t id) {
+    for (auto &ob : observations) {
       ob.erase(id);
     }
   }

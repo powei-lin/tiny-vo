@@ -11,14 +11,20 @@
 #include <pangolin/display/display.h>
 #include <pangolin/display/view.h>
 #include <pangolin/handler/handler.h>
-#include <pangolin/gl/gldraw.h>
+#include <pangolin/scene/axis.h>
 
 #include <argus_utillity.h>
 #include <dataset_loader/dataset_loader.h>
 #include <camera_model/extended_unified_camera.hpp>
+#include <vo/stereo_vo.h>
 
 using namespace std;
 using namespace cv;
+
+const uint8_t cam_color[3]{250, 0, 26};
+const uint8_t state_color[3]{250, 0, 26};
+const uint8_t pose_color[3]{0, 50, 255};
+const uint8_t gt_color[3]{0, 171, 47};
 
 int main(int argc, char *argv[]) {
   CLI::App app{"Tiny VO"};
@@ -62,65 +68,90 @@ int main(int argc, char *argv[]) {
       optical_flow_tracker(gcs, T_cami_cam0[1].inverse());
 
   // Create OpenGL window in single line
-  pangolin::CreateWindowAndBind("Main", 1280, 720);
+  const int window_width = 1280;
+  const int window_height = 720;
+  const int image_window_height = window_height;
+  const int image_window_width =
+      image_window_height / cam_num * img_col_row.x() / img_col_row.y();
+  const int main_window_width = window_width - image_window_width;
+  const float image_bound = (float)window_height * image_window_width /
+                            image_window_height / window_width;
+
+  pangolin::CreateWindowAndBind("Main", window_width, window_height);
   glEnable(GL_DEPTH_TEST);
 
   pangolin::OpenGlRenderState s_cam(
-      pangolin::ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.1, 1000),
-      pangolin::ModelViewLookAt(-1, 1, -1, 0, 0, 0, pangolin::AxisY));
+      pangolin::ProjectionMatrix(main_window_width, window_height, 720, 720,
+                                 main_window_width / 2, window_height / 2, 0.1,
+                                 100),
+      pangolin::ModelViewLookAt(0, -2, -5, 0, 0, 0, pangolin::AxisNegY));
 
-  pangolin::View &d_cam = pangolin::Display("cam")
-                              .SetBounds(0, 1.0f, 0, 1.0f, -640 / 480.0)
-                              .SetHandler(new pangolin::Handler3D(s_cam));
+  pangolin::View &d_cam =
+      pangolin::Display("cam")
+          .SetBounds(0, 1.0f, image_bound, 1.0f,
+                     (float)main_window_width / window_height)
+          .SetHandler(new pangolin::Handler3D(s_cam));
 
-  const int width = img_col_row.x();
-  const int height = img_col_row.y() * cam_num;
   pangolin::View &d_image =
       pangolin::Display("image")
-          .SetBounds(0, 1.0f, 0, 720.0 / 2 / 1280, (float)width / height)
+          .SetBounds(0, 1.0f, 0, image_bound,
+                     (float)image_window_width / image_window_height)
           .SetLock(pangolin::LockLeft, pangolin::LockTop);
 
-  pangolin::GlTexture imageTexture(width, height, GL_RGB, false, 0, GL_RGB,
-                                   GL_UNSIGNED_BYTE);
-  std::queue<std::shared_ptr<cv::Mat>> img_with_points;
+  pangolin::GlTexture imageTexture(img_col_row.x(), img_col_row.y() * cam_num,
+                                   GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
 
-  std::thread vio([&]() {
+  pangolin::Renderable tree;
+  auto axis_i = std::make_shared<pangolin::Axis>();
+  tree.Add(axis_i);
+
+  std::queue<std::shared_ptr<cv::Mat>> img_with_points;
+  std::queue<Sophus::SE3d> poses;
+  std::queue<std::vector<Eigen::Vector3d>> points_3d;
+
+  StereoVo stereo_vo(T_cami_cam0);
+
+  std::thread opt_flow_thread([&]() {
     for (auto frame_ptr = dataset_loader_ptr->get_img_frame(); frame_ptr;
          frame_ptr = dataset_loader_ptr->get_img_frame()) {
 
       // add feature points and track
       optical_flow_tracker.processFrame(*frame_ptr);
       const auto current_obs = optical_flow_tracker.getObservations();
+      const auto current_un_pts = optical_flow_tracker.getUndistortPoints();
+      std::unordered_set<size_t> bad_ids;
+      stereo_vo.track(current_un_pts, bad_ids);
+      optical_flow_tracker.removeObservations(bad_ids);
 
-      std::vector<cv::Mat> temp_img_for_drawing(cam_num);
-      for (int cam = 0; cam < cam_num; ++cam) {
-        temp_img_for_drawing[cam] =
-            argus::draw_observation((*frame_ptr)[cam], current_obs[cam]);
-      }
-      cv::Mat show;
-      cv::vconcat(temp_img_for_drawing, show);
-      cv::flip(show, show, 0);
-      img_with_points.push(make_shared<cv::Mat>(show));
+      img_with_points.push(argus::draw_obs_for_pango(*frame_ptr, current_obs));
+      poses.push(stereo_vo.get_current_pose());
+      points_3d.push(stereo_vo.get_landmark_p3d());
     }
     img_with_points.push(nullptr);
 
-    std::cout << "Finished vio" << std::endl;
+    std::cout << "Finished optical flow thread." << std::endl;
   });
 
   // drawing loop
   while (!pangolin::ShouldQuit()) {
-    while(img_with_points.empty())
+    while (img_with_points.empty())
       this_thread::sleep_for(chrono::milliseconds(5));
     auto img_ptr = img_with_points.front();
-    if( img_ptr == nullptr ) {
+    if (img_ptr == nullptr) {
       break;
     }
-    img_with_points.pop();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     d_cam.Activate(s_cam);
     glColor3f(1.0, 1.0, 1.0);
-    pangolin::glDrawColouredCube();
+    // pangolin::glDrawColouredCube();
+    // m << 420, 0, -main_window_width / 2, 0, 420, -window_height / 2, 0, 0, 1;
+    // pangolin::glDrawFrustum(m, 640, 480, -0.0001);
+    argus::render_camera(poses.front().inverse().matrix(), 2.0f, cam_color,
+                         0.1f);
+    tree.Render();
+    glColor3ubv(pose_color);
+    pangolin::glDrawPoints(points_3d.front());
 
     imageTexture.Upload(img_ptr->ptr(), GL_BGR, GL_UNSIGNED_BYTE);
     d_image.Activate();
@@ -128,10 +159,12 @@ int main(int argc, char *argv[]) {
     imageTexture.RenderToViewport();
 
     pangolin::FinishFrame();
-    // cv::imshow("img", show);
-    // cv::waitKey(1);
+    img_with_points.pop();
+    poses.pop();
+    points_3d.pop();
+    this_thread::sleep_for(chrono::milliseconds(30));
   }
-  vio.join();
+  opt_flow_thread.join();
 
   const std::string result_json_path = log_path + "/calib_result.json";
   const std::string result_poses_json_path = log_path + "/poses.json";
