@@ -10,6 +10,7 @@ private:
   Eigen::aligned_vector<Sophus::SE3d> poses;
   size_t count_pose;
   const std::vector<Sophus::SE3d> T_i_0;
+  static constexpr double triangulate_max_z = 5.0;
 
 public:
   StereoVo(const std::vector<Sophus::SE3d> &);

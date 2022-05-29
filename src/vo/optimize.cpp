@@ -9,7 +9,7 @@ Eigen::Matrix<double, 3, 1>
 triangulatePoint(Eigen::Vector2d &point0, Eigen::Vector2d &point1,
                  Eigen::Matrix<double, 3, 4> Pose1) {
   Eigen::Matrix<double, 3, 4> Pose0;
-  Pose0 << 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0;
+  Pose0.setIdentity();
   Eigen::Matrix4d design_matrix = Eigen::Matrix4d::Zero();
   design_matrix.row(0) = point0[0] * Pose0.row(2) - Pose0.row(0);
   design_matrix.row(1) = point0[1] * Pose0.row(2) - Pose0.row(1);
@@ -38,12 +38,16 @@ bool ceres_solvePnp(Sophus::SE3d &pose, const std::vector<Sophus::SE3d> &T_i_0,
   ceres::LossFunction *loss = new ceres::HuberLoss(0.5);
   std::vector<ceres::ResidualBlockId> res_block;
 
+  constexpr int residual_degree = 3;
+  constexpr int pose_degree = 7;
+
   const size_t cam_num = un_cam_pts.size();
   for (int cam = 0; cam < cam_num; ++cam) {
     const size_t pt_num = un_cam_pts[cam].size();
     for (int p = 0; p < pt_num; ++p) {
       ceres::CostFunction *cost =
-          new ceres::AutoDiffCostFunction<pnpFactor, 3, 7>(
+          new ceres::AutoDiffCostFunction<pnpFactor, residual_degree,
+                                          pose_degree>(
               new pnpFactor(cam_p3ds[cam][p], un_cam_pts[cam][p], T_i_0[cam]));
 
       res_block.push_back(problem.AddResidualBlock(cost, loss, pose.data()));
@@ -55,19 +59,20 @@ bool ceres_solvePnp(Sophus::SE3d &pose, const std::vector<Sophus::SE3d> &T_i_0,
   ceres::Solver::Options solver_options;
   ceres::Solve(solver_options, &problem, &summary);
 
+  // evaluate reprojection error
   std::priority_queue<std::pair<double, ceres::ResidualBlockId>> pq;
-
   for (auto &rbid : res_block) {
     Eigen::Vector3d r;
     problem.EvaluateResidualBlock(rbid, false, nullptr, r.data(), nullptr);
     pq.emplace(r.norm(), rbid);
   }
 
-  while (pq.size() > 30) {
+  // use best 30 points to refine the pose
+  constexpr int best_n_points = 30;
+  while (pq.size() > best_n_points) {
     problem.RemoveResidualBlock(pq.top().second);
     pq.pop();
   }
-
   ceres::Solve(solver_options, &problem, &summary);
 
   return summary.termination_type == ceres::CONVERGENCE;

@@ -2,12 +2,11 @@
 #include <iostream>
 #include <queue>
 
+// thirdparty
 #include <CLI11.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/viz.hpp>
 #include <basalt/frame_to_frame_optical_flow.h>
 
+// visualization
 #include <pangolin/display/display.h>
 #include <pangolin/display/view.h>
 #include <pangolin/handler/handler.h>
@@ -15,15 +14,11 @@
 
 #include <argus_utillity.h>
 #include <dataset_loader/dataset_loader.h>
-#include <camera_model/extended_unified_camera.hpp>
 #include <vo/stereo_vo.h>
 
-using namespace std;
-using namespace cv;
-
-const uint8_t cam_color[3]{250, 0, 26};
-const uint8_t pose_color[3]{0, 50, 255};
-const uint8_t gt_color[3]{0, 71, 2};
+constexpr uint8_t cam_color[3]{250, 0, 26};
+constexpr uint8_t pose_color[3]{0, 50, 255};
+constexpr uint8_t gt_color[3]{0, 71, 2};
 
 int main(int argc, char *argv[]) {
   CLI::App app{"Tiny VO"};
@@ -39,9 +34,11 @@ int main(int argc, char *argv[]) {
       ->default_val("config/tum_vi_dataset.json");
 
   CLI11_PARSE(app, argc, argv);
+
+  // create log folder
   const auto log_path = "logs/" + argus::date();
-  if (!filesystem::exists(log_path)) {
-    filesystem::create_directories(log_path);
+  if (!std::filesystem::exists(log_path)) {
+    std::filesystem::create_directories(log_path);
   }
 
   // load dataset
@@ -51,22 +48,18 @@ int main(int argc, char *argv[]) {
   const auto frame_num = dataset_loader_ptr->total_frame();
   const auto cam_num = dataset_loader_ptr->total_cam_num();
 
-  // load cameras
-  const auto models = argus::json2models<argus::ExtendedUnifiedCamera<double>>(
+  // load cameras and extrinsics
+  auto gcs = argus::json2models<basalt::ExtendedUnifiedCamera, float>(
       camera_calib_file_path);
-  const auto img_col_row = models[0].get_img_col_row();
+  const auto img_col_row = argus::json2img_col_row(camera_calib_file_path)[0];
   const auto T_cami_cam0 =
       argus::json2extrinsics<double>(camera_calib_file_path);
 
   // load basalt optical flow tracker
-  Eigen::aligned_vector<basalt::GenericCamera<float>> gcs(models.size());
-  for (int cam = 0; cam < models.size(); ++cam)
-    gcs[cam].variant = basalt::ExtendedUnifiedCamera<float>(
-        models[cam].get_param().cast<float>());
   basalt::FrameToFrameOpticalFlow<float, basalt::Pattern51>
       optical_flow_tracker(gcs, T_cami_cam0[1].inverse());
 
-  // Create OpenGL window in single line
+  // Create OpenGL window
   const int window_width = 960;
   const int window_height = 540;
   const int image_window_height = window_height;
@@ -126,6 +119,7 @@ int main(int argc, char *argv[]) {
       stereo_vo.track(current_un_pts, bad_ids);
       optical_flow_tracker.removeObservations(bad_ids);
 
+      // for visualize result
       img_with_points.push(argus::draw_obs_for_pango(*frame_ptr, current_obs));
       poses.push(stereo_vo.get_current_pose());
       points_3d.push(stereo_vo.get_landmark_p3d());
@@ -136,6 +130,7 @@ int main(int argc, char *argv[]) {
       }
       pos_history.push_back(poses.back().inverse().translation());
     }
+    // represent the end
     img_with_points.push(nullptr);
 
     std::cout << "Finished optical flow thread." << std::endl;
@@ -145,7 +140,7 @@ int main(int argc, char *argv[]) {
   int count_frame = 0;
   while (!pangolin::ShouldQuit()) {
     while (img_with_points.empty())
-      this_thread::sleep_for(chrono::milliseconds(5));
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     auto img_ptr = img_with_points.front();
     if (img_ptr == nullptr) {
       break;
@@ -180,8 +175,8 @@ int main(int argc, char *argv[]) {
 
     pangolin::FinishFrame();
 
-    // for save image
-    // std::string img_name = std::to_string(count_frame++);
+    // for saving image
+    // std::string img_name = std::to_string(count_frame);
     // img_name =
     //     log_path + "/" + std::string(5 - img_name.size(), '0') + img_name;
     // pangolin::SaveWindowOnRender(img_name);
@@ -189,7 +184,8 @@ int main(int argc, char *argv[]) {
     img_with_points.pop();
     poses.pop();
     points_3d.pop();
-    this_thread::sleep_for(chrono::milliseconds(30));
+    ++count_frame;
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
   }
   opt_flow_thread.join();
 

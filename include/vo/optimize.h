@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Eigen/Dense>
 #include <sophus/se3.hpp>
 
 template <class Derived>

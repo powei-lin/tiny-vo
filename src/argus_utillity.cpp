@@ -61,4 +61,26 @@ std::shared_ptr<cv::Mat> draw_obs_for_pango(
   return std::make_shared<cv::Mat>(show);
 }
 
+std::vector<std::string> camera_param_name_list(const std::string &model_name) {
+  if (model_name == "ucm") {
+    return {"fx", "fy", "cx", "cy", "alpha"};
+  } else if (model_name == "eucm") {
+    return {"fx", "fy", "cx", "cy", "alpha", "beta"};
+  }
+  return {};
+}
+
+std::vector<Eigen::Vector2i> json2img_col_row(const std::string &file_path) {
+  const auto j = load_json(file_path);
+
+  std::vector<Eigen::Vector2i> img_col_row;
+
+  const uint16_t cam_num = j["resolution"].size();
+
+  for (int cam = 0; cam < cam_num; ++cam) {
+    img_col_row.emplace_back(j["resolution"][cam][0].get<int>(),
+                             j["resolution"][cam][1].get<int>());
+  }
+  return img_col_row;
+}
 } // namespace argus
