@@ -58,7 +58,6 @@ std::shared_ptr<cv::Mat> draw_obs_for_pango(
   }
   cv::Mat show;
   cv::vconcat(temp_img_for_drawing, show);
-  cv::flip(show, show, 0);
   return std::make_shared<cv::Mat>(show);
 }
 

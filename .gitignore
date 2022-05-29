@@ -13,3 +13,4 @@ _deps
 build
 logs
 .vscode
+.DS_Store
