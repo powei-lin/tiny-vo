@@ -79,33 +79,34 @@ int main(int argc, char *argv[]) {
   pangolin::CreateWindowAndBind("Main", window_width, window_height);
   glEnable(GL_DEPTH_TEST);
 
+  // for drawing camera pose
   pangolin::OpenGlRenderState s_cam(
       pangolin::ProjectionMatrix(
           main_window_width, window_height, window_height, window_height,
           main_window_width / 2, window_height / 2, 0.01, 100),
       pangolin::ModelViewLookAt(0, -2, -4, 0, 0, 0, pangolin::AxisNegY));
-
   pangolin::View &d_cam =
       pangolin::Display("cam")
           .SetBounds(0, 1.0f, image_bound, 1.0f,
                      (float)main_window_width / window_height)
           .SetHandler(new pangolin::Handler3D(s_cam));
 
+  // for drawing key points
   pangolin::View &d_image =
       pangolin::Display("image")
           .SetBounds(0, 1.0f, 0, image_bound,
                      (float)image_window_width / image_window_height)
           .SetLock(pangolin::LockLeft, pangolin::LockTop);
-
   pangolin::GlTexture imageTexture(img_col_row.x(), img_col_row.y() * cam_num,
                                    GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
 
+  // draw axis reference
   pangolin::Renderable tree;
   auto axis_i = std::make_shared<pangolin::Axis>();
-
   axis_i->axis_length = 0.5;
   tree.Add(axis_i);
 
+  // visiualization data
   std::queue<std::shared_ptr<cv::Mat>> img_with_points;
   std::queue<Sophus::SE3d> poses;
   std::queue<std::vector<Eigen::Vector3d>> points_3d;
@@ -179,10 +180,11 @@ int main(int argc, char *argv[]) {
 
     pangolin::FinishFrame();
 
-    std::string img_name = std::to_string(count_frame++);
-    img_name =
-        log_path + "/" + std::string(5 - img_name.size(), '0') + img_name;
-    pangolin::SaveWindowOnRender(img_name);
+    // for save image
+    // std::string img_name = std::to_string(count_frame++);
+    // img_name =
+    //     log_path + "/" + std::string(5 - img_name.size(), '0') + img_name;
+    // pangolin::SaveWindowOnRender(img_name);
 
     img_with_points.pop();
     poses.pop();
@@ -194,7 +196,6 @@ int main(int argc, char *argv[]) {
   const std::string result_json_path = log_path + "/calib_result.json";
   const std::string result_poses_json_path = log_path + "/poses.json";
   const std::string result_pts_json_path = log_path + "/pts.json";
-  std::vector<std::vector<Sophus::SE3d>> cam_poses;
 
   return 0;
 }

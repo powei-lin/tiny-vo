@@ -1,6 +1,9 @@
 # tiny-vo
 
-This project is still in progress.
+This project shows how minimun visual odometry works. Currently the process does not contain bundle adjustment.
+
+<a href="https://youtu.be/NBjQhl4TGsU" target="_blank"><img src="/image/image.png" 
+alt="tiny-vo" width="540" /></a>
 
 ## Build
 ```sh
