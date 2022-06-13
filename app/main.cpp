@@ -40,7 +40,6 @@ int main(int argc, char *argv[]) {
   if (!std::filesystem::exists(log_path)) {
     std::filesystem::create_directories(log_path);
   }
-
   // load dataset
   const auto data_type_config = argus::load_json(data_config_file_path);
   const auto dataset_loader_ptr =
