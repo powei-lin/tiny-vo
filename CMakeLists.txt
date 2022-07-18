@@ -17,5 +17,5 @@ file(GLOB TINY_VO_SRCS ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/src
 add_library(tinyvo ${TINY_VO_SRCS})
 target_link_libraries(tinyvo basalt-headers Ceres::ceres ${OpenCV_LIBS} pango_display pango_scene)
 
-add_executable(main main.cpp)
+add_executable(main app/main.cpp)
 target_link_libraries(main tinyvo)
