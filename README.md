@@ -1,5 +1,6 @@
 # tiny-vo
 [![macOS Build Status](https://github.com/powei-lin/tiny-vo/workflows/macOS/badge.svg)](https://github.com/powei-lin/tiny-vo/actions?query=workflow%3AmacOS)
+
 This project shows how minimum visual odometry works. Currently the process does not contain bundle adjustment.
 
 <a href="https://youtu.be/NBjQhl4TGsU" target="_blank"><img src="/image/image.png" 
